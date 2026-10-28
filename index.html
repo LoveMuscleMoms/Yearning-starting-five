@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Build a roster, rate players on five yearning stats, and set a 2K-style starting five.">
+<title>Yearning Starting Five</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+html, body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+/* Layout: arena page. Scoreboard header, hardwood court holding the five starter cards,
+   then the player builder (sliders + live card) beside the roster list. Deliberately single dark theme. */
+:root {
+  color-scheme: dark;
+  --bg: #13111c;
+  --surface: #1c1928;
+  --surface-2: #252136;
+  --line: #342f4a;
+  --fg: #efeaf7;
+  --muted: #a39bba;
+  --accent: #ff7a45;      /* basketball orange */
+  --heart: #ff4f8b;       /* the yearning */
+  --wood-1: #c88a52;
+  --wood-2: #b27542;
+  --wood-line: #f6e7d2;
+  --display: "Teko", "Arial Narrow", Impact, sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --label: "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-block: 24px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 32px;
+}
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; }
+.eyebrow {
+  font-family: var(--label);
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--heart);
+}
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Scoreboard header ---------- */
+.board {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+.board h1 {
+  font-family: var(--display);
+  font-size: clamp(44px, 8vw, 76px);
+  line-height: .85;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+}
+.board h1 span { color: var(--heart); }
+.board p { margin: 10px 0 0; color: var(--muted); max-width: 58ch; }
+.team-ovr {
+  display: flex;
+  gap: 2px;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.team-ovr div {
+  padding: 8px 18px;
+  text-align: center;
+  background: #0a0910;
+}
+.team-ovr b {
+  display: block;
+  font-family: var(--display);
+  font-size: 46px;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.team-ovr small {
+  font-family: var(--label);
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Court ---------- */
+.court {
+  position: relative;
+  border-radius: 10px;
+  padding: 28px 18px 22px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, var(--wood-1) 0 22px, var(--wood-2) 22px 23px, var(--wood-1) 23px 44px);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 6px #6b3f1f, inset 0 0 80px rgba(0,0,0,.35);
+}
+.court svg.lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.court-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.court-head h2 {
+  font-family: var(--display);
+  font-size: 36px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #2a1406;
+}
+.slots {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+.slot { display: grid; gap: 8px; min-width: 0; }
+.slot-label {
+  font-family: var(--label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 13px;
+  color: #2a1406;
+  display: flex;
+  justify-content: space-between;
+}
+.slot select {
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(42,20,6,.4);
+  background: rgba(255,248,238,.92);
+  color: #2a1406;
+  font-size: 14px;
+}
+.empty-slot {
+  aspect-ratio: 5 / 7;
+  border: 2px dashed rgba(42,20,6,.45);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 12px;
+  color: rgba(42,20,6,.75);
+  font-family: var(--label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 14px;
+  background: rgba(255,248,238,.18);
+}
+
+/* ---------- Player card (2K style) ---------- */
+.card {
+  --t1: #888; --t2: #333; --ink: #fff;
+  position: relative;
+  aspect-ratio: 5 / 7;
+  max-width: 100%;
+  border-radius: 12px;
+  padding: 12px 12px 10px;
+  background:
+    radial-gradient(120% 70% at 85% 0%, rgba(255,255,255,.35), transparent 60%),
+    linear-gradient(160deg, var(--t1), var(--t2));
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.25);
+  container-type: inline-size;
+}
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.3);
+  pointer-events: none;
+}
+.card .top { display: flex; justify-content: space-between; align-items: start; }
+.card .ovr {
+  font-family: var(--display);
+  font-size: clamp(34px, 26cqw, 60px);
+  line-height: .8;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.card .pos {
+  font-family: var(--label);
+  font-weight: 700;
+  font-size: clamp(12px, 9cqw, 16px);
+  letter-spacing: .08em;
+  margin-top: 2px;
+}
+.card .tier {
+  font-family: var(--label);
+  font-weight: 700;
+  font-size: clamp(9px, 6.5cqw, 12px);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(0,0,0,.22);
+  color: inherit;
+  white-space: nowrap;
+}
+.card .face {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+.card .face span {
+  width: 44cqw;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 20cqw;
+  line-height: 1;
+  padding-top: 3cqw;
+  background: rgba(0,0,0,.18);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.35);
+}
+.card .name {
+  font-family: var(--display);
+  font-size: clamp(18px, 14cqw, 28px);
+  line-height: .95;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card .arch {
+  font-family: var(--label);
+  font-size: clamp(10px, 7.5cqw, 13px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  opacity: .85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card .mini {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255,255,255,.3);
+  text-align: center;
+}
+.card .mini b {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(14px, 11cqw, 22px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.card .mini small {
+  display: block;
+  font-family: var(--label);
+  font-size: clamp(8px, 5.6cqw, 10px);
+  font-weight: 700;
+  letter-spacing: .06em;
+  opacity: .8;
+}
+
+.tier-bronze   { --t1: #a8724a; --t2: #4a2a17; --ink: #fff1e4; }
+.tier-silver   { --t1: #dfe3ea; --t2: #737b88; --ink: #15171c; }
+.tier-gold     { --t1: #f7d468; --t2: #9a7212; --ink: #1f1603; }
+.tier-ruby     { --t1: #ee5468; --t2: #6a0d21; --ink: #fff4f6; }
+.tier-amethyst { --t1: #b682f5; --t2: #3c1a78; --ink: #fbf6ff; }
+.tier-diamond  { --t1: #a6eefa; --t2: #2486a8; --ink: #032029; }
+.tier-pink     { --t1: #ffb3da; --t2: #c42c7c; --ink: #2d0419; }
+.tier-dark     { --t1: #4b3478; --t2: #060510; --ink: #f4ecff; }
+.tier-dark { box-shadow: 0 10px 24px rgba(0,0,0,.35), 0 0 0 2px #ff4f8b, 0 0 18px rgba(255,79,139,.55); }
+
+/* ---------- Builder + roster ---------- */
+.lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.panel h2 {
+  font-family: var(--display);
+  font-size: 32px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.builder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 22px;
+  align-items: start;
+}
+.fields { display: grid; gap: 16px; min-width: 0; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 12px; }
+label.f { display: grid; gap: 5px; }
+label.f > span, .stat-top label {
+  font-family: var(--label);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+}
+input[type="text"], .fields select {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.stat { display: grid; gap: 4px; }
+.stat-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.stat-top output {
+  font-family: var(--display);
+  font-size: 26px;
+  line-height: 1;
+  min-width: 2.2ch;
+  text-align: right;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.stat .hint { font-size: 13px; color: var(--muted); }
+.stat .hint em { color: var(--heart); font-style: normal; font-weight: 600; }
+input[type="range"] { width: 100%; accent-color: var(--heart); margin: 2px 0; }
+.preview { display: grid; gap: 10px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.preview .card { width: 100%; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge {
+  font-family: var(--label);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.badge.b-bronze { color: #e2a578; border-color: #7a4c2c; }
+.badge.b-silver { color: #d6dbe3; border-color: #6b7380; }
+.badge.b-gold   { color: #f7d468; border-color: #8f6a10; }
+.badge.b-hof    { color: #ff9bc0; border-color: var(--heart); background: rgba(255,79,139,.12); }
+.formula { font-size: 13px; color: var(--muted); margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn {
+  padding: 10px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-family: var(--label);
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--heart); border-color: var(--heart); color: #1a0510; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.dark { background: #2a1406; border-color: #2a1406; color: #ffe9d6; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.danger { color: #ff8a8a; }
+.btn.danger.armed { background: #c23535; border-color: #c23535; color: #fff; }
+
+.roster-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.roster-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.sample-note {
+  font-size: 14px;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.list { display: grid; gap: 8px; }
+.player {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+}
+.player.editing { border-color: var(--heart); }
+.chip {
+  --t1: #888; --t2: #333; --ink: #fff;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  background: linear-gradient(160deg, var(--t1), var(--t2));
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 30px;
+  line-height: 1;
+  padding-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.player .who { min-width: 0; }
+.player .who b {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player .who span { font-size: 13px; color: var(--muted); }
+.player .who .status { color: var(--accent); font-weight: 600; }
+.player .btns { display: flex; gap: 6px; }
+.empty-roster { color: var(--muted); text-align: center; padding: 24px 8px; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  transform: translate(-50%, 20px);
+  background: var(--fg);
+  color: var(--bg);
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity .2s, transform .2s;
+  pointer-events: none;
+  z-index: 20;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 980px) {
+  .lower { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 820px) {
+  .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .builder-grid { grid-template-columns: minmax(0, 1fr); }
+  .preview { position: static; max-width: 220px; }
+  .panel { padding: 16px; }
+  .player { grid-template-columns: 44px minmax(0, 1fr); }
+  .chip { width: 44px; height: 44px; font-size: 26px; }
+  .player .btns { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="board">
+    <div>
+      <div class="eyebrow">Ratings powered by longing</div>
+      <h1>Yearning <span>Starting Five</span></h1>
+      <p>Build a roster, rate each player on five yearning stats from 0 to 100, and put your five biggest yearners on the floor. Ratings work like a 2K overall: the more someone yearns, the higher they rate.</p>
+    </div>
+    <div class="team-ovr" aria-live="polite">
+      <div><b id="team-ovr">--</b><small>Team OVR</small></div>
+      <div><b id="team-count">0/5</b><small>Starters</small></div>
+      <div><b id="roster-count">0</b><small>Roster</small></div>
+    </div>
+  </header>
+
+  <section class="court" aria-labelledby="court-title">
+    <svg class="lines" viewBox="0 0 1000 420" preserveAspectRatio="none" aria-hidden="true">
+      <g fill="none" stroke="#f6e7d2" stroke-opacity=".55" stroke-width="4">
+        <rect x="370" y="0" width="260" height="190" fill="#ff4f8b" fill-opacity=".14"></rect>
+        <path d="M 400 190 A 100 70 0 0 0 600 190"></path>
+        <path d="M 70 0 L 70 120 A 430 300 0 0 0 930 120 L 930 0"></path>
+        <path d="M 380 420 A 120 80 0 0 1 620 420"></path>
+      </g>
+    </svg>
+    <div class="court-head">
+      <h2 id="court-title">Starting Lineup</h2>
+      <div class="actions">
+        <button class="btn dark small" id="auto-fill" type="button">Auto-pick top 5</button>
+        <button class="btn dark small" id="clear-lineup" type="button">Clear lineup</button>
+      </div>
+    </div>
+    <div class="slots" id="slots"></div>
+  </section>
+
+  <div class="lower">
+    <section class="panel" aria-labelledby="builder-title">
+      <div>
+        <div class="eyebrow" id="builder-mode">Create player</div>
+        <h2 id="builder-title">Player Builder</h2>
+      </div>
+      <form id="builder" class="builder-grid" novalidate>
+        <div class="fields">
+          <div class="row2">
+            <label class="f"><span>Name</span><input type="text" id="p-name" maxlength="28" placeholder="Who are they?" autocomplete="off"></label>
+            <label class="f"><span>Position</span>
+              <select id="p-pos">
+                <option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option>
+              </select>
+            </label>
+          </div>
+          <div id="stat-fields" class="fields"></div>
+          <p class="formula">OVR = 25% time + 25% feelings + 15% around friends + 20% leaving groups + 15% can't function without them. Capped at 99, like 2K.</p>
+          <div class="actions">
+            <button class="btn primary" type="submit" id="save-btn">Add to roster</button>
+            <button class="btn" type="button" id="cancel-btn" hidden>Cancel edit</button>
+            <button class="btn" type="button" id="reset-btn">Reset sliders</button>
+          </div>
+        </div>
+        <div class="preview">
+          <div id="preview-card"></div>
+          <div class="badges" id="preview-badges"></div>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="roster-title">
+      <div class="roster-head">
+        <div>
+          <h2 id="roster-title">Roster</h2>
+          <p>Sorted by overall. Saved in this browser.</p>
+        </div>
+      </div>
+      <div class="sample-note" id="sample-note" hidden>
+        <span>These are sample players so you can see how it works.</span>
+        <button class="btn small" type="button" id="clear-sample">Clear samples</button>
+      </div>
+      <div class="list" id="roster"></div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const STATS = [
+  { key: 'time',      label: 'Time spent yearning',        short: 'TIME', badge: '3 AM Thinker',     weight: .25, hint: 'How much of their day goes to thinking about this person.' },
+  { key: 'intensity', label: 'Strength of feelings',       short: 'FEEL', badge: 'All In',           weight: .25, hint: 'How strong the feelings are.' },
+  { key: 'friends',   label: 'Yearns around friends',      short: 'SOCL', badge: 'Zoned Out',        weight: .15, hint: 'How often they yearn while hanging out with friends.' },
+  { key: 'isolate',   label: 'Leaves groups for them',     short: 'EXIT', badge: 'Irish Exit',       weight: .20, hint: 'How often they leave the group to be alone with this person.' },
+  { key: 'function',  label: "Can't function without them", short: 'FUNC', badge: 'Lost Without You', weight: .15,
+    hint: 'How lost they are without this person. 100 means they cannot get by at all.' },
+];
+const POSITIONS = [
+  { key: 'PG', name: 'Point Guard' }, { key: 'SG', name: 'Shooting Guard' }, { key: 'SF', name: 'Small Forward' },
+  { key: 'PF', name: 'Power Forward' }, { key: 'C', name: 'Center' },
+];
+const TIERS = [
+  { min: 98, cls: 'tier-dark',     name: 'Dark Matter' },
+  { min: 95, cls: 'tier-pink',     name: 'Pink Diamond' },
+  { min: 90, cls: 'tier-diamond',  name: 'Diamond' },
+  { min: 85, cls: 'tier-amethyst', name: 'Amethyst' },
+  { min: 80, cls: 'tier-ruby',     name: 'Ruby' },
+  { min: 70, cls: 'tier-gold',     name: 'Gold' },
+  { min: 60, cls: 'tier-silver',   name: 'Silver' },
+  { min: 0,  cls: 'tier-bronze',   name: 'Bronze' },
+];
+const ARCHETYPES = {
+  time: 'Full-Time Daydreamer',
+  intensity: 'Heart-on-Sleeve Slasher',
+  friends: 'Mid-Hangout Yearner',
+  isolate: 'Group Chat Ghost',
+  function: 'Codependent Anchor',
+};
+const DEFAULT_STATS = { time: 50, intensity: 50, friends: 50, isolate: 50, function: 50 };
+const KEY = 'yearning5.v2';
+const OLD_KEY = 'yearning5.v1'; // v1 stored "can function", which ran the opposite way
+
+const SAMPLE = [
+  { name: 'Riley', pos: 'PG', stats: { time: 96, intensity: 99, friends: 92, isolate: 95, function: 96 } },
+  { name: 'Marcus', pos: 'SG', stats: { time: 88, intensity: 91, friends: 70, isolate: 85, function: 85 } },
+  { name: 'Jo', pos: 'SF', stats: { time: 80, intensity: 85, friends: 75, isolate: 60, function: 70 } },
+  { name: 'Devin', pos: 'PF', stats: { time: 72, intensity: 78, friends: 55, isolate: 68, function: 60 } },
+  { name: 'Sam', pos: 'C', stats: { time: 65, intensity: 70, friends: 50, isolate: 45, function: 55 } },
+  { name: 'Taylor', pos: 'SG', stats: { time: 40, intensity: 55, friends: 30, isolate: 20, function: 20 } },
+  { name: 'Casey', pos: 'PF', stats: { time: 20, intensity: 35, friends: 10, isolate: 5, function: 5 } },
+];
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = v => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+
+// Yearning contribution of a stat: "can function without them" counts in reverse.
+const yearn = (stat, v) => stat.inverse ? 100 - v : v;
+function ovr(stats) {
+  const raw = STATS.reduce((sum, s) => sum + s.weight * yearn(s, stats[s.key]), 0);
+  return Math.min(99, Math.round(raw));
+}
+const tierOf = o => TIERS.find(t => o >= t.min);
+function archetypeOf(stats) {
+  let best = STATS[0];
+  for (const s of STATS) if (yearn(s, stats[s.key]) > yearn(best, stats[best.key])) best = s;
+  return ARCHETYPES[best.key];
+}
+function badgesOf(stats) {
+  return STATS.map(s => {
+    const v = yearn(s, stats[s.key]);
+    const lvl = v >= 90 ? ['hof', 'HOF'] : v >= 80 ? ['gold', 'Gold'] : v >= 70 ? ['silver', 'Silver'] : v >= 60 ? ['bronze', 'Bronze'] : null;
+    return lvl && { name: s.badge, cls: lvl[0], lvl: lvl[1], v };
+  }).filter(Boolean).sort((a, b) => b.v - a.v);
+}
+const initials = name => (name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2) || '?').toUpperCase();
+
+// ---------- State ----------
+let state = load();
+let editingId = null;
+
+function seed() {
+  const players = SAMPLE.map(p => ({ id: uid(), ...p, stats: { ...p.stats }, sample: true }));
+  const lineup = {};
+  POSITIONS.forEach((pos, i) => { lineup[pos.key] = players[i].id; });
+  return { players, lineup };
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.players)) return { players: s.players, lineup: s.lineup || {} };
+    }
+    const old = JSON.parse(localStorage.getItem(OLD_KEY) || 'null');
+    if (old && Array.isArray(old.players)) {
+      old.players.forEach(p => { p.stats.function = 100 - p.stats.function; });
+      return { players: old.players, lineup: old.lineup || {} };
+    }
+  } catch (e) {}
+  return seed();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+}
+const byId = id => state.players.find(p => p.id === id);
+const slotOf = id => POSITIONS.find(pos => state.lineup[pos.key] === id);
+
+// ---------- Rendering ----------
+function cardHTML(p) {
+  const o = ovr(p.stats);
+  const t = tierOf(o);
+  const mini = STATS.map(s => `<div><b>${p.stats[s.key]}</b><small>${s.short}</small></div>`).join('');
+  return `<div class="card ${t.cls}" role="img" aria-label="${esc(p.name || 'Unnamed')}, ${o} overall, ${t.name}">
+    <div class="top">
+      <div><div class="ovr">${o}</div><div class="pos">${esc(p.pos)}</div></div>
+      <div class="tier">${t.name}</div>
+    </div>
+    <div class="face"><span>${esc(initials(p.name || '?'))}</span></div>
+    <div class="name">${esc(p.name || 'New Player')}</div>
+    <div class="arch">${archetypeOf(p.stats)}</div>
+    <div class="mini">${mini}</div>
+  </div>`;
+}
+
+function renderSlots() {
+  const el = document.getElementById('slots');
+  const starters = new Set(Object.values(state.lineup).filter(Boolean));
+  el.innerHTML = POSITIONS.map(pos => {
+    const p = byId(state.lineup[pos.key]);
+    const options = ['<option value="">Empty</option>'].concat(
+      [...state.players].sort((a, b) => ovr(b.stats) - ovr(a.stats))
+        .filter(x => x.id === state.lineup[pos.key] || !starters.has(x.id))
+        .map(x => `<option value="${x.id}" ${p && x.id === p.id ? 'selected' : ''}>${esc(x.name)} (${ovr(x.stats)})</option>`)
+    ).join('');
+    return `<div class="slot">
+      <div class="slot-label"><span>${pos.key}</span><span>${pos.name}</span></div>
+      ${p ? cardHTML(p) : `<div class="empty-slot">Open spot<br>Pick a player below</div>`}
+      <select id="slot-${pos.key}" data-slot="${pos.key}" aria-label="${pos.name}">${options}</select>
+    </div>`;
+  }).join('');
+}
+
+function renderRoster() {
+  const el = document.getElementById('roster');
+  const sorted = [...state.players].sort((a, b) => ovr(b.stats) - ovr(a.stats));
+  document.getElementById('sample-note').hidden = !state.players.some(p => p.sample);
+  if (!sorted.length) {
+    el.innerHTML = `<div class="empty-roster">No players yet. Use the Player Builder to add your first yearner.</div>`;
+    return;
+  }
+  el.innerHTML = sorted.map(p => {
+    const o = ovr(p.stats);
+    const t = tierOf(o);
+    const slot = slotOf(p.id);
+    return `<div class="player ${p.id === editingId ? 'editing' : ''}">
+      <div class="chip ${t.cls}">${o}</div>
+      <div class="who">
+        <b>${esc(p.name)}${p.sample ? ' <span>(sample)</span>' : ''}</b>
+        <span>${esc(p.pos)} · ${t.name} · ${archetypeOf(p.stats)} · ${slot ? `<span class="status">Starting ${slot.key}</span>` : 'Bench'}</span>
+      </div>
+      <div class="btns">
+        <button class="btn small" type="button" data-edit="${p.id}">Edit</button>
+        <button class="btn small danger" type="button" data-del="${p.id}">Cut</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderHeader() {
+  const starters = POSITIONS.map(pos => byId(state.lineup[pos.key])).filter(Boolean);
+  document.getElementById('team-ovr').textContent = starters.length
+    ? Math.round(starters.reduce((s, p) => s + ovr(p.stats), 0) / starters.length) : '--';
+  document.getElementById('team-count').textContent = `${starters.length}/5`;
+  document.getElementById('roster-count').textContent = state.players.length;
+}
+
+function renderAll() {
+  // drop lineup references to cut players
+  for (const k of Object.keys(state.lineup)) if (!byId(state.lineup[k])) delete state.lineup[k];
+  renderSlots();
+  renderRoster();
+  renderHeader();
+  save();
+}
+
+// ---------- Builder ----------
+const statFields = document.getElementById('stat-fields');
+statFields.innerHTML = STATS.map(s => `<div class="stat">
+  <div class="stat-top"><label for="s-${s.key}">${s.label}</label><output id="o-${s.key}" for="s-${s.key}">50</output></div>
+  <input type="range" id="s-${s.key}" min="0" max="100" step="1" value="50">
+  <div class="hint">${s.hint}</div>
+</div>`).join('');
+
+function readForm() {
+  const stats = {};
+  STATS.forEach(s => { stats[s.key] = clamp(document.getElementById('s-' + s.key).value); });
+  return {
+    name: document.getElementById('p-name').value.trim(),
+    pos: document.getElementById('p-pos').value,
+    stats,
+  };
+}
+function writeForm(p) {
+  document.getElementById('p-name').value = p.name || '';
+  document.getElementById('p-pos').value = p.pos || 'PG';
+  STATS.forEach(s => { document.getElementById('s-' + s.key).value = p.stats[s.key]; });
+  updatePreview();
+}
+function updatePreview() {
+  const p = readForm();
+  STATS.forEach(s => { document.getElementById('o-' + s.key).textContent = p.stats[s.key]; });
+  document.getElementById('preview-card').innerHTML = cardHTML(p);
+  const badges = badgesOf(p.stats);
+  document.getElementById('preview-badges').innerHTML = badges.length
+    ? badges.map(b => `<span class="badge b-${b.cls}">${b.lvl} · ${b.name}</span>`).join('')
+    : `<span class="badge">No badges yet (60+ earns one)</span>`;
+}
+function setEditing(id) {
+  editingId = id;
+  const p = id && byId(id);
+  document.getElementById('builder-mode').textContent = p ? `Editing ${p.name}` : 'Create player';
+  document.getElementById('save-btn').textContent = p ? 'Save changes' : 'Add to roster';
+  document.getElementById('cancel-btn').hidden = !p;
+  writeForm(p || { name: '', pos: 'PG', stats: { ...DEFAULT_STATS } });
+  renderRoster();
+}
+
+document.getElementById('builder').addEventListener('input', updatePreview);
+document.getElementById('builder').addEventListener('submit', e => {
+  e.preventDefault();
+  const data = readForm();
+  if (!data.name) {
+    toast('Give the player a name first.');
+    document.getElementById('p-name').focus();
+    return;
+  }
+  if (editingId && byId(editingId)) {
+    Object.assign(byId(editingId), data, { sample: false });
+    toast(`${data.name} updated`);
+  } else {
+    const p = { id: uid(), ...data };
+    state.players.push(p);
+    const open = POSITIONS.find(pos => pos.key === p.pos && !state.lineup[pos.key]);
+    if (open) state.lineup[open.key] = p.id;
+    toast(open ? `${data.name} added and starting at ${open.key}` : `${data.name} added to the bench`);
+  }
+  setEditing(null);
+  renderAll();
+});
+document.getElementById('cancel-btn').addEventListener('click', () => setEditing(null));
+document.getElementById('reset-btn').addEventListener('click', () => {
+  STATS.forEach(s => { document.getElementById('s-' + s.key).value = 50; });
+  updatePreview();
+});
+
+// ---------- Roster + lineup actions ----------
+let armed = null;
+document.getElementById('roster').addEventListener('click', e => {
+  const edit = e.target.closest('[data-edit]');
+  const del = e.target.closest('[data-del]');
+  if (edit) {
+    setEditing(edit.dataset.edit);
+    document.getElementById('builder-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (del) {
+    const id = del.dataset.del;
+    if (armed !== id) {
+      armed = id;
+      del.textContent = 'Confirm cut';
+      del.classList.add('armed');
+      setTimeout(() => { if (armed === id) { armed = null; renderRoster(); } }, 3000);
+      return;
+    }
+    armed = null;
+    const p = byId(id);
+    state.players = state.players.filter(x => x.id !== id);
+    if (editingId === id) setEditing(null);
+    toast(`${p.name} was cut`);
+    renderAll();
+  }
+});
+
+document.getElementById('slots').addEventListener('change', e => {
+  const slot = e.target.dataset.slot;
+  if (!slot) return;
+  if (e.target.value) state.lineup[slot] = e.target.value;
+  else delete state.lineup[slot];
+  renderAll();
+});
+
+document.getElementById('auto-fill').addEventListener('click', () => {
+  const ranked = [...state.players].sort((a, b) => ovr(b.stats) - ovr(a.stats));
+  const used = new Set();
+  const lineup = {};
+  // First pass: best player who actually plays the position. Second pass: best remaining anyone.
+  for (const pos of POSITIONS) {
+    const p = ranked.find(x => !used.has(x.id) && x.pos === pos.key);
+    if (p) { lineup[pos.key] = p.id; used.add(p.id); }
+  }
+  for (const pos of POSITIONS) {
+    if (lineup[pos.key]) continue;
+    const p = ranked.find(x => !used.has(x.id));
+    if (p) { lineup[pos.key] = p.id; used.add(p.id); }
+  }
+  state.lineup = lineup;
+  renderAll();
+  toast(state.players.length ? 'Lineup set to your top yearners' : 'Add players first');
+});
+document.getElementById('clear-lineup').addEventListener('click', () => {
+  state.lineup = {};
+  renderAll();
+});
+document.getElementById('clear-sample').addEventListener('click', () => {
+  state.players = state.players.filter(p => !p.sample);
+  renderAll();
+  toast('Sample players removed');
+});
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+setEditing(null);
+renderAll();
+</script>
+
+</body>
+</html>
